@@ -1,0 +1,122 @@
+    
+    Install Plugins
+    --------------------
+    import pdfMake from 'pdfmake/build/pdfmake';
+    import pdfFonts from 'pdfmake/build/vfs_fonts';
+    pdfMake.vfs = pdfFonts.pdfMake.vfs;
+    import { File } from '@ionic-native/file';
+    import { FileOpener } from '@ionic-native/file-opener';
+
+    Method for Create and download PDF
+    -----------------------------------
+    createPdf() {
+        let rowContent = [];
+        let tableheaders = [];
+        let tableContent = [];
+        for (var i = 0; i < this.tableHeaders.length; i++) {
+            tableheaders[i] = { text: this.tableHeaders[i].name, bold: true, alignment: 'center' }
+        }
+        tableContent.push(tableheaders);
+        for (var j = 0; j < this.appointments.length; j++) {
+            // for (var k = 0; k < 5; k++) {
+            rowContent.push(
+                { text: "Dr. " + this.appointments[j].Doctor, alignment: 'left' },
+                { text: this.appointments[j].ConumerName, alignment: 'left' },
+                { text: this.appointments[j].AppointmentDate, alignment: 'left' },
+                { text: this.appointments[j].PaidOnline ? "Paid" : "Not Paid", alignment: 'left' },
+                { text: this.appointments[j].ConsumerStatus.indexOf('Cancelled') > -1 ? 'Cancelled' : this.appointments[j].ConsumerStatus, alignment: 'left', style: this.appointments[j].ConsumerStatus == 'Scheduled' ? 'scheduled' : (this.appointments[j].ConsumerStatus == 'Treated' ? 'treated' : 'cancelled') }
+            );
+            tableContent.push(rowContent);
+            rowContent = [];
+            // }
+        }
+
+        var docDefinition = {
+            watermark: { text: 'HealthPro', color: '#11b1be', opacity: 0.3, fontSize: '30', italics: false },
+            content: [
+                { text: 'Appointment Report', style: 'header' },
+                { text: this.loggedInUserInfo.userName, style: 'subheader' },
+                { text: moment(this.TempStartDate).format("Do MMM YYYY") + "  -  " + moment(this.TempEndDate).format("Do MMM YYYY"), style: 'date' },
+                { text: "Total Appointment: " + this.appointments.length, style: 'totalAppointments' },
+                {
+                    style: 'appo_margin',
+                    ul: [
+                        { text: 'Scheduled: ' + this.scheduleAppointments.length, style: 'count', color: '#35adff' },
+                        { text: 'Treated: ' + this.treatedAppointments.length, style: 'count', color: '#68bb69' },
+                        { text: 'Cancelled: ' + this.cancelAppointments.length, style: 'count', color: '#f15c23' }
+                    ]
+                },
+                // { text: moment().format('Do MMM YYYY, h:mm a'), style: 'date' },
+                {
+                    style: 'tableStyle',
+                    table: {
+                        headerRows: 1,
+                        widths: ['*', '*', '*', '*', '*'],
+                        body: tableContent
+                    }
+                },
+                { text: moment().format('Do MMM YYYY, h:mm a'), style: 'currentdate' },
+            ],
+            styles: {
+                header: {
+                    fontSize: 18,
+                    bold: true,
+                    alignment: 'center'
+                },
+                subheader: {
+                    fontSize: 16,
+                    alignment: 'center',
+                    margin: [0, 5, 5, 5]
+                },
+                date: {
+                    fontSize: 16,
+                    alignment: 'center',
+                    margin: [0, 0, 0, 20]
+                },
+                currentdate: {
+                    fontSize: 14,
+                    alignment: 'right',
+                    margin: [0, 5, 5, 5]
+                },
+                totalAppointments: {
+                    fontSize: 14,
+                    bold: true,
+                    alignment: 'left',
+                },
+                count: {
+                    fontSize: 14,
+                    alignment: 'left',
+                },
+                appo_margin: {
+                    margin: [0, 0, 5, 15]
+                },
+                tableStyle: {
+                    fontSize: 14,
+                },
+                pageSize: 'A4',
+                pageOrientation: 'portrait',
+                treated: {
+                    color: '#68bb69'
+                },
+                scheduled: {
+                    color: '#35adff'
+                },
+                cancelled: {
+                    color: '#f15c23'
+                }
+            }
+        }
+        this.pdfObj = pdfMake.createPdf(docDefinition);
+        this.downloadPdf();
+    }
+    downloadPdf() {
+        // this.pdfObj.getBuffer((buffer) => {
+        //     var blob = new Blob([buffer], { type: 'application/pdf' });
+        //     // Save the PDF to the data Directory of our App
+        //     this.file.writeFile(this.file.dataDirectory, this.loggedInUserInfo.userName + '_appointment_report.pdf', blob, { replace: true }).then(fileEntry => {
+        //         // Open the PDf with the correct OS tools
+        //         this.fileOpener.open(this.file.dataDirectory + this.loggedInUserInfo.userName + '_appointment_report.pdf', 'application/pdf');
+        //     })
+        // });
+        this.pdfObj.download();
+    }
