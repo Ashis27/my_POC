@@ -1,0 +1,28 @@
+ #endregion
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<HttpResponseMessage> GetProducts(string token, string clientId)
+        {
+            HttpClient client = new HttpClient();
+            var request = new HttpRequestMessage
+            {
+                RequestUri = new Uri("https://api.bigcommerce.com/stores/2ehexi4c3r/v3/catalog/products"),
+                Method = HttpMethod.Get,
+                Headers = {
+                     { "X-Version", "1" },
+                     { HttpRequestHeader.ContentType.ToString(), "application/json" },
+                     { HttpRequestHeader.Accept.ToString(), "application/json" },
+                     { "X-Auth-Token", token },
+                     { "X-Auth-Client", clientId }
+                 },
+            };
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Ssl3 | SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+            var response = client.SendAsync(request).Result;
+            if (response != null)
+            {
+                var jsonString = await response.Content.ReadAsStringAsync();
+                return Request.CreateResponse(System.Net.HttpStatusCode.OK, new { Status = true, Result = JsonConvert.DeserializeObject<object>(jsonString) });
+            }
+            return Request.CreateResponse(System.Net.HttpStatusCode.OK, new { Status = false });
+        }
+        
