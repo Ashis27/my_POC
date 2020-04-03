@@ -1,0 +1,105 @@
+////////////Facade Layer/////////////////////////
+
+public static SortingAndPagingViewModel<CaseDiagnosisViewModel> GetDiagnosisResultForPagination(int cmCaseID, int cmCaseContractProgramID, bool isProvider)
+        {
+            int pageCount = 0;
+            List<CaseDiagnosisViewModel> selectedDiagnosisList = new List<CaseDiagnosisViewModel>();
+            SortingAndPagingViewModel<CaseDiagnosisViewModel> sortingAndPagingViewModel = new SortingAndPagingViewModel<CaseDiagnosisViewModel>();
+            List<CaseDiagnosisCode> caseDiagnosisCodes = MedCodesManager.GetSelectedDiagnosisResultForPagination(cmCaseID, cmCaseContractProgramID, out pageCount);
+            foreach (CaseDiagnosisCode caseDiagnosis in caseDiagnosisCodes)
+            {
+                selectedDiagnosisList.Add(ConvertCaseDiagnosisCodeToViewModel(caseDiagnosis, isProvider, false));
+            }
+            sortingAndPagingViewModel.Count = pageCount;
+            sortingAndPagingViewModel.Result = selectedDiagnosisList;
+            //return selectedDiagnosisList.OrderBy(cdc => cdc.IndexNum).ToList();
+            return sortingAndPagingViewModel;
+        }
+
+/////Dynamic Sort and Paginate//////////////////////
+
+        public static IEnumerable<TSource> SortingAndPaging<TSource>(this IEnumerable<TSource> source, int pageSize, int pageIndex, string orderBy, string orderByColName)
+        {
+            // Gets the coloumn name that sorting to be done on
+            var propertyInfo = source.GetType().GetGenericArguments()[0].GetProperty(orderByColName);
+            // sorts by ascending if sort criteria is Ascending otherwise sorts descending
+            return orderBy == "Descending" ? source.OrderByDescending(x => propertyInfo.GetValue(x, null)).Skip(pageIndex * pageSize).Take(pageSize)
+                               : source.OrderBy(x => propertyInfo.GetValue(x, null)).Skip(pageIndex * pageSize).Take(pageSize);
+        }
+
+////////////////////////Generic SOrt and Pagination Model to return count and filtered results///////////////////////////
+
+  public class SortingAndPagingViewModel<T>
+    {
+        public IList<T> Result { get; set; }
+        public int Couint { get; set; }
+    }
+
+///////Controller//////////////
+ public PartialViewResult GetDiagnosisResults(int cmCaseID, int cmCaseContractProgramID)
+        {
+            SortingAndPagingViewModel<CaseDiagnosisViewModel> sortingAndPagingViewModel = new SortingAndPagingViewModel<CaseDiagnosisViewModel>();
+            sortingAndPagingViewModel = DiagnosisFacade.GetDiagnosisResultsForTest(cmCaseID, cmCaseContractProgramID, _userState.ProviderUsers.Count > 0);
+            //List<CaseDiagnosisViewModel> diagnosisResults = DiagnosisFacade.GetDiagnosisResults(cmCaseID, cmCaseContractProgramID, _userState.ProviderUsers.Count > 0);
+            return PartialView("~/Views/Shared/Clinical/Diagnosis/index.cshtml", sortingAndPagingViewModel);
+        }
+
+
+
+/////////////////////Sorting and Paging Logic///////////////////////////
+public static IEnumerable<TSource> SortingAndPaging<TSource>(this IQueryable<TSource> source, int pageSize, int pageIndex, string sortField, string orderBy)
+        {
+            if (!String.IsNullOrEmpty(sortField))
+            {
+                string[] propertyNames = sortField.Split('.');
+                ParameterExpression pe = Expression.Parameter(typeof(TSource), string.Empty);
+                Expression property = pe;
+                foreach (var prop in propertyNames)
+                    property = Expression.PropertyOrField(property, prop);
+                LambdaExpression lambda = Expression.Lambda(property, pe);
+                MethodCallExpression call = Expression.Call(
+                    typeof(Queryable),
+                    orderBy == "Descending" ? "OrderByDescending" : "OrderBy",
+                    new Type[] { typeof(TSource), property.Type },
+                    source.Expression,
+                    Expression.Quote(lambda));
+                var sortedRecords = (IOrderedQueryable<TSource>)source.Provider.CreateQuery<TSource>(call);
+                return sortedRecords.Skip(pageIndex * pageSize).Take(pageSize).ToList();
+            }
+            return source.Skip(pageIndex * pageSize).Take(pageSize).ToList();
+        }
+
+
+/////////////Enity Framework code////////////////
+public static List<CaseDiagnosisCode> GetSelectedDiagnosisResultForPagination(int cmCaseID, int cmCaseContractProgrameID, out int pageCount)
+        {
+            List<CaseDiagnosisCode> CaseDiagnosisCodeFilterResults = new List<CaseDiagnosisCode>();
+            using (AtrezzoContext context = new AtrezzoContext())
+            {
+                //IQueryable<CaseDiagnosisCode> caseDiagnosisCodes = context.CaseDiagnosisCodes
+                //    .Include(cdc => cdc.DiagnosisCode)
+                //    .Include(cdc => cdc.DiagnosisCode.CodeDiagnosisType)
+                //    .Include(cdc => cdc.CodeSource)
+                //    .Where(cdc => cdc.CaseID == cmCaseID &&
+                //           cdc.CMCaseContractProgramID == cmCaseContractProgrameID &&
+                //           cdc.CodeDeactivationReasonID == null &&
+                //           cdc.DateDeactivated == null).AsQueryable();
+
+                var caseDiagnosisCodes = context.CaseDiagnosisCodes
+                    .Include(cdc => cdc.DiagnosisCode)
+                    .Include(cdc => cdc.DiagnosisCode.CodeDiagnosisType)
+                    .Include(cdc => cdc.CodeSource)
+                    .Where(cdc => cdc.CaseID != cmCaseID).AsQueryable();
+
+                IEnumerable<CaseDiagnosisCode> filteredResults = SortingAndPaging(caseDiagnosisCodes, 10, 1, "DiagnosisCode.Description", "Descending");
+                CaseDiagnosisCodeFilterResults = filteredResults.ToList();
+                pageCount = caseDiagnosisCodes.Count();
+
+                foreach (CaseDiagnosisCode caseDiagnosisCode in CaseDiagnosisCodeFilterResults)
+                {
+                    caseDiagnosisCode.StartTracking();
+                }
+
+            }
+            return CaseDiagnosisCodeFilterResults;
+        }
